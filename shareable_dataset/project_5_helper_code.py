@@ -6,7 +6,7 @@ import os
 
 ##### CHANGE THIS TO YOUR DIRECTORY #####
 
-path = "/Users/srdjansumarac/Library/CloudStorage/OneDrive-UniversityofToronto/teaching/BME1500_FALL_2022_PROJECT5_DATA/neurons-smr-format-sorted" # Enter the path where the .smr files are located on your computer
+path = "/Users/naziba/Desktop/Project_5_BME1500/shareable_dataset/neurons" # Enter the path where the .smr files are located on your computer
 filename = "neuron_002.smr" # Name of the file including the extension (.smr)
 
 ##### IMPORT .SMR DATA STRUCTURE INTO PYTHON (DO NOT CHANGE) #####
@@ -20,6 +20,28 @@ spike_times = np.array(segments.events[0],dtype='float64') # spike timing array 
 sampling_frequency = float(segments.analogsignals[0].sampling_rate) # the number of samples per second (in Hz)
 time = np.arange(0,len(analogsignal))/sampling_frequency # time vector
 
+# Feature extraction 
+
+# Firing rate is the average number of spikes per second::
+recording_duration = time[-1]  # seconds
+firing_rate = len(spike_times) / recording_duration
+print("Firing Rate (Hz):", firing_rate)
+
+# ISI and CV:
+# the ISI is the time difference between consecutive spikes.
+# the CV tells you how regular or irregular the firing is.  A low CV (close to 0) indicates a regular firing pattern, 
+# while a high CV (around or above 1) suggests an irregular, more random pattern. 
+isis = np.diff(spike_times)
+cv = np.std(isis) / np.mean(isis)
+print("ISI mean (s):", np.mean(isis))
+print("CV of ISI:", cv)
+
+# Burst Index:
+burst_threshold = 0.01  # seconds
+bursts = isis < burst_threshold
+burst_index = np.sum(bursts) / len(isis)
+print("Burst Index:", burst_index)
+
 ##### PLOT SIGNALS #####
 
 fig, ax = plt.subplots(2, sharex = True, )
@@ -30,3 +52,4 @@ ax[1].eventplot(spike_times, color='black')
 ax[1].set_xlabel("Time (s)")
 
 plt.show()
+
