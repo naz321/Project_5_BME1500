@@ -7,7 +7,7 @@ from sklearn.mixture import GaussianMixture
 from scipy.stats import median_abs_deviation
 import warnings
 import math
-#from astropy.timeseries import LomgScargle
+from astropy.timeseries import LombScargle
 import finnpy.filters.frequency as ff
 import finnpy.basic.downsampling as ds
 
@@ -18,7 +18,7 @@ def butterworth_filter(signal,fs,hpcutoff=None,lpcutoff=None):
     elif lpcutoff == None:
         b,a = sps.iirfilter(4, hpcutoff, btype='highpass', fs=fs)
     else:
-        b,a = sps.iirfilter(4, [hpcutoff, lpcutoff], fs=fs)
+        b,a = sps.iirfilter(4, [lpcutoff, hpcutoff], fs=fs)
 
     return sps.filtfilt(b,a,signal)
 
@@ -150,29 +150,89 @@ def get_spiketrain_burstduration(spike_indices, fs, waves=False):
         else:
             return burst
     
+    import numpy as np
+
+    import numpy as np
+
     def burst_features(time_ds, burst, burst_threshold):
-        above_threshold = burst > burst_threshold
-        cross_indices = np.where(np.diff(above_threshold))[0]
-        if len(cross_indices) <= 1:
-            return np.zeros(7), 0
-        else:
-            if not above_threshold[cross_indices[0] + 1]:
-                cross_indices = cross_indices[1:]
-            durations = []
-            for i in range(0, len(cross_indices), 2):
-                if i + 1 < len(cross_indices):
-                    duration = time_ds[cross_indices[i + 1]] - time_ds[cross_indices[i]]
-                    durations.append(duration)
-            # Converting the list to a numpy array for future calculations
-            durations = np.array(durations)
-            durations = [x for x in durations if x > 0.1]
-            # Define the bins
-            bins = np.arange(0.1, 0.8, 0.1)
-            bins = np.append(bins, np.inf)
-            counts, _ = np.histogram(durations, bins)
-            percentages = (counts / len(durations)) * 100  # Updated calculation
-            average = np.mean(durations)
-            return percentages, average
+        """
+        Returns:
+        percentages: 7-length array with % of bursts in bins
+                    [0.1–0.2, 0.2–0.3, …, 0.7–inf) seconds
+        average: mean burst duration (seconds); 0.0 if no bursts
+        """
+        time_ds = np.asarray(time_ds, dtype=float)
+        above = (burst > burst_threshold)
+
+        # Where the boolean state changes (rises/falls)
+        cross = np.where(np.diff(above.astype(np.int8)) != 0)[0]
+
+        # If <2 edges, we can't form a burst
+        if cross.size <= 1:
+            return np.zeros(7, dtype=float), 0.0
+
+        # Ensure we start with a rising edge; if first edge is a fall, drop it
+        # (right side False means it was a fall)
+        if not above[cross[0] + 1]:
+            cross = cross[1:]
+
+        # Make even number of edges (pairs of rise/fall)
+        if cross.size % 2 == 1:
+            cross = cross[:-1]
+
+        if cross.size < 2:
+            return np.zeros(7, dtype=float), 0.0
+
+        # Durations between paired edges (index+1 moves to the first sample in the new state)
+        starts = cross[0::2] + 1
+        ends   = cross[1::2] + 1
+        durations = time_ds[ends] - time_ds[starts]
+
+        # Keep only valid, positive durations > 0.1 s
+        durations = durations[np.isfinite(durations)]
+        durations = durations[durations > 0.1]
+
+        # Histogram bins: 0.1–0.2 … 0.7–inf  → 7 counts
+        bins = np.append(np.arange(0.1, 0.8, 0.1), np.inf)
+        counts, _ = np.histogram(durations, bins=bins)
+
+        n = durations.size
+        # Safe normalization: 0% if n==0 (no warnings)
+        percentages = np.divide(
+            counts, n,
+            out=np.zeros_like(counts, dtype=float),
+            where=n > 0
+        ) * 100.0
+
+        # Safe mean
+        average = float(np.mean(durations)) if n > 0 else 0.0
+
+        return percentages, average
+    
+    # def burst_features(time_ds, burst, burst_threshold):
+    #     above_threshold = burst > burst_threshold
+    #     cross_indices = np.where(np.diff(above_threshold))[0]
+    #     if len(cross_indices) <= 1:
+    #         return np.zeros(7), 0
+    #     else:
+    #         if not above_threshold[cross_indices[0] + 1]:
+    #             cross_indices = cross_indices[1:]
+    #         durations = []
+    #         for i in range(0, len(cross_indices), 2):
+    #             if i + 1 < len(cross_indices):
+    #                 duration = time_ds[cross_indices[i + 1]] - time_ds[cross_indices[i]]
+    #                 durations.append(duration)
+    #         # Converting the list to a numpy array for future calculations
+    #         durations = np.array(durations)
+    #         durations = [x for x in durations if x > 0.1]
+    #         # Define the bins
+    #         bins = np.arange(0.1, 0.8, 0.1)
+    #         bins = np.append(bins, np.inf)
+    #         counts, _ = np.histogram(durations, bins)
+    #         percentages = (counts / len(durations)) * 100  # Updated calculation
+    #         average = np.mean(durations)
+    #         return percentages, average
+        
     
     events = spike_indices / fs
     spike_oscillations_theta_wave, spike_oscillations_theta_times, theta_wave_power = waveform_spiketrain_oscillation(events, 4, 8)
