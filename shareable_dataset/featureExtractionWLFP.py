@@ -12,7 +12,7 @@ import read_file as read_file
 #### DEFINING SETTINGS
 DATA_DER = './neurons/'
 METADATA_FILE = "./bme1500-project-5-metadata.xlsx"
-OUTPUT_FILE = './myNeuronFeatures_wLFP.csv'
+OUTPUT_FILE = './NeuronFeatures_wLFP.csv'
 
 path = "/Users/tasnianabil/Desktop/PhD Courses/BME1500/DBSClassification/neurons" # Enter the path where the .smr files are located on your computer
 
